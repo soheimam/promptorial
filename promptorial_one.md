@@ -1,337 +1,175 @@
+## Prompt: Initialize a new MiniKit project
 
-# MiniKit Mini App Development Promptorial
+```prompt
+Create a new MiniKit project using the following command
 
-## Prompt 1: Project Scaffolding
-```
-Create a new MiniKit project using the create-onchain CLI. Follow these exact steps:
 
-1. Run the scaffolding command:
-npx create-onchain@alpha --mini my-mini-app
+npx create-onchain --mini
 
-2. Navigate into the project directory:
-cd my-mini-app
 
-3. Install dependencies:
+After running the command navigate into the new project directory and install the dependencies
+
+
+cd [your-project-name]
 npm install
 
-Verify the project structure has been created successfully. Confirm you see:
-- /src directory
-- page.tsx file
-- package.json
-- Next.js configuration files
+
+refer to the following documentation to understand how MiniKit works:
+https://docs.base.org/builderkits/minikit/llms.txt
+https://docs.base.org/builderkits/onchainkit/llms.txt
 ```
 
-## Prompt 2: Clean Project Setup
-```
-Remove the default Snake component to prepare for custom implementation:
+## Prompt: Set up authentication and display user FID
 
-1. Open /src/app/page.tsx
-2. Replace ALL existing code with a minimal React component:
+```prompt
+Create a client component at `components/AuthButton.tsx` that uses the `useAuthenticate` hook from MiniKit to handle user authentication and display the user's FID.
+
+The component should:
+- Be a client component (`'use client'`)
+- Use `useAuthenticate` from `@coinbase/onchainkit/minikit`
+- Show a login button if the user is not authenticated
+- Show a message with the user's FID after successful authentication
+
+Example:
+
 
 'use client';
-import React from 'react';
 
-export default function HomePage() {
-  return (
-    <div>
-      <h1>My MiniKit Mini App</h1>
-    </div>
-  );
-}
-```
-
-## Prompt 3: Authentication Setup
-```
-Implement Farcaster wallet authentication using MiniKit's hooks:
-
-1. Import necessary hooks:
-import { useAuthenticate, useFarcasterContext } from 'minikit';
 import { useState } from 'react';
+import { useAuthenticate } from '@coinbase/onchainkit/minikit';
 
-2. Create authentication handler in page.tsx:
-export default function HomePage() {
+export default function AuthButton() {
+  const [fid, setFid] = useState<number | null>(null);
   const { signIn } = useAuthenticate();
-  const context = useFarcasterContext();
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
 
   const handleSignIn = async () => {
     const result = await signIn({
-      domain: process.env.NEXT_PUBLIC_APP_DOMAIN,
-      siweUri: `${process.env.NEXT_PUBLIC_APP_URL}/login`
+      domain: 'your-app.vercel.app', // 🔁 Replace with your actual domain
+      siweUri: 'https://your-app.vercel.app/api/login',
     });
 
-    if (result) {
-      setIsLoggedIn(true);
-      console.log('Authentication successful');
+    if (result?.fid) {
+      setFid(result.fid);
+      console.log('Signed in FID:', result.fid);
     }
   };
 
-  return (
-    <div>
-      {!isLoggedIn ? (
-        <button onClick={handleSignIn}>
-          Login with Farcaster
-        </button>
-      ) : (
-        <div>
-          <h1>Welcome, {context?.user?.username}!</h1>
-        </div>
-      )}
-    </div>
+  return !fid ? (
+    <button
+      onClick={handleSignIn}
+      className="bg-black text-white px-4 py-2 rounded-2xl shadow"
+    >
+      Sign in with Farcaster
+    </button>
+  ) : (
+    <p className="text-green-600 text-lg">✅ Signed in as FID: {fid}</p>
   );
 }
-```
 
-## Prompt 4: First Login Confetti
-```
-Add a celebratory confetti effect for new users:
 
-1. Install react-confetti:
-npm install react-confetti
+Import this component in your `app/page.tsx` file.
 
-2. Update page.tsx to include confetti:
-import Confetti from 'react-confetti';
+Create a minimal API route at `app/api/login/route.ts` using `verifySignInMessage`:
 
-export default function HomePage() {
-  // ... previous authentication code
 
-  return (
-    <div>
-      {!isLoggedIn ? (
-        <button onClick={handleSignIn}>
-          Login with Farcaster
-        </button>
-      ) : (
-        <div>
-          {context?.user?.isNewUser && <Confetti />}
-          <h1>Welcome, {context?.user?.username}!</h1>
-        </div>
-      )}
-    </div>
-  );
+import { verifySignInMessage } from '@farcaster/auth-kit';
+import { NextResponse } from 'next/server';
+
+export async function POST(req: Request) {
+  const { message, signature } = await req.json();
+
+  try {
+    const { fid } = await verifySignInMessage(message, signature);
+    return NextResponse.json({ fid });
+  } catch {
+    return NextResponse.json({ error: 'Invalid signature' }, { status: 401 });
+  }
 }
 ```
 
-## Prompt 5: Manifest Configuration
-```
-Prepare manifest.json for Vercel deployment:
+## Prompt: Show user identity card after authentication
 
-Create /public/manifest.json with:
-{
-  "name": "My Mini App",
-  "description": "A MiniKit Mini App with Farcaster authentication",
-  "icons": [
-    {
-      "src": "/icon.png",
-      "sizes": "192x192",
-      "type": "image/png"
-    }
-  ]
-}
+```prompt
+Update your `app/page.tsx` file to conditionally render content based on the user's authenticated state.
 
-Ensure you have a 192x192 icon in /public/icon.png
-```
+Import and render the existing `AuthButton` component at the top of the page. Only display the main content after the user has authenticated (i.e., has a valid FID).
 
-## Prompt 6: Vercel Deployment
-```
-Deploy to Vercel:
+Then, create a new component at `components/IdentityCard.tsx` that accepts a `username` and `pfp` as props and displays the user's identity.
 
-1. Ensure you have Vercel CLI installed:
-npm install -g vercel
+The IdentityCard should:
+- Accept `username: string` and `pfp: string`
+- Display the user's profile picture and username
+- Use basic Tailwind styling
 
-2. Login to Vercel:
-vercel login
+Example `IdentityCard.tsx`:
 
-3. Deploy the project:
-vercel
-
-4. Set environment variables in Vercel dashboard:
-- NEXT_PUBLIC_APP_DOMAIN
-- NEXT_PUBLIC_APP_URL
-- FARCASTER_MNEMONIC (if required)
-
-Verify deployment URL and test Farcaster login
-```
-
-## Final Verification Prompt
-```
-Conduct a comprehensive test of your MiniKit Mini App:
-
-1. Verify login button appears
-2. Click login and complete Farcaster authentication
-3. Confirm username displays after login
-4. Check if confetti appears for new users
-5. Ensure smooth navigation and error handling
-```
-
-This promptorial provides a step-by-step guide to building a MiniKit Mini App with Farcaster authentication, deployed on Vercel, complete with a welcoming user experience.
-Preview
-Text
-I'll help you create a comprehensive prompt guide for building a MiniKit Mini App. I'll structure this as a series of precise, actionable prompts that a developer can follow step-by-step.
-
-# MiniKit Mini App Development Promptorial
-
-## Prompt 1: Project Scaffolding
-```
-Create a new MiniKit project using the create-onchain CLI. Follow these exact steps:
-
-1. Run the scaffolding command:
-npx create-onchain@alpha --mini my-mini-app
-
-2. Navigate into the project directory:
-cd my-mini-app
-
-3. Install dependencies:
-npm install
-
-Verify the project structure has been created successfully. Confirm you see:
-- /src directory
-- page.tsx file
-- package.json
-- Next.js configuration files
-```
-
-## Prompt 2: Clean Project Setup
-```
-Remove the default Snake component to prepare for custom implementation:
-
-1. Open /src/app/page.tsx
-2. Replace ALL existing code with a minimal React component:
 
 'use client';
-import React from 'react';
 
-export default function HomePage() {
+type IdentityCardProps = {
+  username: string;
+  pfp: string;
+};
+
+export default function IdentityCard({ username, pfp }: IdentityCardProps) {
   return (
-    <div>
-      <h1>My MiniKit Mini App</h1>
+    <div className="flex items-center gap-4 p-4 rounded-xl shadow bg-white">
+      <img src={pfp} alt="pfp" className="w-12 h-12 rounded-full" />
+      <p className="text-lg font-semibold">@{username}</p>
     </div>
   );
 }
-```
 
-## Prompt 3: Authentication Setup
-```
-Implement Farcaster wallet authentication using MiniKit's hooks:
 
-1. Import necessary hooks:
-import { useAuthenticate, useFarcasterContext } from 'minikit';
+Then in `app/page.tsx`, render the `IdentityCard` after the user has signed in:
+
+'use client';
+
 import { useState } from 'react';
-
-2. Create authentication handler in page.tsx:
-export default function HomePage() {
-  const { signIn } = useAuthenticate();
-  const context = useFarcasterContext();
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
-
-  const handleSignIn = async () => {
-    const result = await signIn({
-      domain: process.env.NEXT_PUBLIC_APP_DOMAIN,
-      siweUri: `${process.env.NEXT_PUBLIC_APP_URL}/login`
-    });
-
-    if (result) {
-      setIsLoggedIn(true);
-      console.log('Authentication successful');
-    }
-  };
-
-  return (
-    <div>
-      {!isLoggedIn ? (
-        <button onClick={handleSignIn}>
-          Login with Farcaster
-        </button>
-      ) : (
-        <div>
-          <h1>Welcome, {context?.user?.username}!</h1>
-        </div>
-      )}
-    </div>
-  );
-}
-```
-
-## Prompt 4: First Login Confetti
-```
-Add a celebratory confetti effect for new users:
-
-1. Install react-confetti:
-npm install react-confetti
-
-2. Update page.tsx to include confetti:
-import Confetti from 'react-confetti';
+import AuthButton from '@/components/AuthButton';
+import IdentityCard from '@/components/IdentityCard';
 
 export default function HomePage() {
-  // ... previous authentication code
+  const [user, setUser] = useState<{ username: string; pfp: string } | null>(null);
 
   return (
-    <div>
-      {!isLoggedIn ? (
-        <button onClick={handleSignIn}>
-          Login with Farcaster
-        </button>
-      ) : (
-        <div>
-          {context?.user?.isNewUser && <Confetti />}
-          <h1>Welcome, {context?.user?.username}!</h1>
-        </div>
-      )}
-    </div>
+    <main className="p-8">
+      <AuthButton onAuthSuccess={setUser} />
+      {user && <IdentityCard username={user.username} pfp={user.pfp} />}
+    </main>
   );
 }
+
+
+Pass a callback prop (`onAuthSuccess`) to `AuthButton` that is triggered after a successful sign-in, passing the user's `username` and `pfp`. Store this in local state and use it to render the identity card.
+
+Only authenticated users will see the identity content.
 ```
 
-## Prompt 5: Manifest Configuration
-```
-Prepare manifest.json for Vercel deployment:
+## Prompt: Deploy your MiniKit app to Vercel
 
-Create /public/manifest.json with:
-{
-  "name": "My Mini App",
-  "description": "A MiniKit Mini App with Farcaster authentication",
-  "icons": [
-    {
-      "src": "/icon.png",
-      "sizes": "192x192",
-      "type": "image/png"
-    }
-  ]
-}
+```prompt
+Deploy your MiniKit app to Vercel using the following steps:
 
-Ensure you have a 192x192 icon in /public/icon.png
-```
+1. Install the Vercel CLI globally (if not already installed):
 
-## Prompt 6: Vercel Deployment
-```
-Deploy to Vercel:
 
-1. Ensure you have Vercel CLI installed:
 npm install -g vercel
 
-2. Login to Vercel:
-vercel login
+In your MiniKit project root, run the deployment command:
 
-3. Deploy the project:
-vercel
+After deployment completes, you'll receive a live URL like:
 
-4. Set environment variables in Vercel dashboard:
-- NEXT_PUBLIC_APP_DOMAIN
-- NEXT_PUBLIC_APP_URL
-- FARCASTER_MNEMONIC (if required)
+Update your MiniKit AuthButton.tsx logic to use your live domain. Replace the domain and siweUri values in signIn():
 
-Verify deployment URL and test Farcaster login
+const result = await signIn({
+  domain: 'your-app-name.vercel.app', //  Replace with your actual Vercel domain
+  siweUri: 'https://your-app-name.vercel.app/api/login',
+});
 ```
 
-## Final Verification Prompt
-```
-Conduct a comprehensive test of your MiniKit Mini App:
+## Prompt: Generating manifest
 
-1. Verify login button appears
-2. Click login and complete Farcaster authentication
-3. Confirm username displays after login
-4. Check if confetti appears for new users
-5. Ensure smooth navigation and error handling
+```prompt
+npx create-onchain --manifest
 ```
-
-This promptorial provides a step-by-step guide to building a MiniKit Mini App with Farcaster authentication, deployed on Vercel, complete with a welcoming user experience.
